@@ -14,6 +14,7 @@
  * #include "efm32gg995f1024.h"
  */
 #include "em_device.h"
+#include "pt.h"
 #include "pwm.h"
 #include "lcd.h"
 #include "adc.h"
@@ -32,7 +33,28 @@
 #define TRAS 2
 #define ESQUERDA 3
 
-#define TickDivisor 100000        // microseconds
+
+
+uint32_t valE = 0, valD = 0, valT = 0;
+uint32_t pwmE, pwmD;
+static char status = 'I';
+static int cruz = 0;
+
+
+struct pt pt1;
+uint32_t threshold1,period1=10000;
+
+struct pt pt2;
+uint32_t threshold2,period2=20000;
+
+struct pt pt3;
+uint32_t threshold3,period3=15000;
+
+struct pt pt4;
+uint32_t threshold4,period4=17000;
+
+
+#define TickDivisor 100000        // 10 microseconds
 static uint32_t ticks = 0;
 
 void SysTick_Handler(void){
@@ -82,9 +104,222 @@ void read_adcs(uint32_t* valE, uint32_t* valD, uint32_t* valT, int c) {
     Delay(200000);
 }
 
+// void send_status(char status) {
+//     UART_SendString("SITU: ");
+//     UART_SendChar(status);
+//     UART_SendChar('\n');
+//     UART_SendChar('\r');
+// }
+
+
+
+PT_THREAD(Blinker1(struct pt *pt)) {
+
+    PT_BEGIN(pt);
+
+    while(1) {
+        // Processing
+        valE = ADC_Read(ADC_CH0);
+        valD = ADC_Read(ADC_CH1);
+        valT = ADC_Read(ADC_CH3);
+        threshold1 = ticks+period1;
+        PT_WAIT_UNTIL(pt,ticks>=threshold1);
+    }
+
+    (void) PT_YIELD_FLAG; // to silence compiler warning
+
+    PT_END(pt);
+
+}
+
+PT_THREAD(Blinker2(struct pt *pt)) {
+
+    PT_BEGIN(pt);
+
+    while(1) {
+        // Processing
+        uart_adc("ADCD", valD);
+        uart_adc("ADCE", valE);
+        uart_adc("ADCT", valT);
+        UART_SendString("SITU: ");
+        UART_SendChar(status);
+        UART_SendChar('\n');
+        UART_SendChar('\r');
+        UART_SendString("CRUZAMENTO: ");
+        UART_SendChar(cruz + '0');
+        UART_SendChar('\n');
+        UART_SendChar('\r');
+
+        UART_SendChar('\n');
+        UART_SendChar('\r');
+        threshold2 = ticks+period2;
+        PT_WAIT_UNTIL(pt,ticks>=threshold2);
+    }
+
+    (void) PT_YIELD_FLAG; // to silence compiler warning
+
+    PT_END(pt);
+
+}
+
+PT_THREAD(Blinker3(struct pt *pt)) {
+
+    PT_BEGIN(pt);
+
+    static int i = 0;
+
+    while(1) {
+        // Processing
+        if((valD > PRETO) && (valE > PRETO)) {
+            pwmE = MAX_PWM * 0.7;
+            pwmD = MAX_PWM * 0.7;
+            status = 'P';
+            cruz = 1;
+        } else if(valT > PRETO && cruz == 1) {
+            pwmE = 0;
+            pwmD = 0;
+
+            // for (int i = 0; i < 4; i++){
+            //     //leitura sensor de distancia
+            //     //imprimir no LCD
+            //     //girar o servo 90 graus
+            // }
+            if (0) { // direita livre
+                while (valE < (PRETO)) {
+                    pwmE = MAX_PWM/2;
+                    pwmD = 0;
+                    status = 'D';
+                    threshold3 = ticks+period3;
+                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                    //read_adcs(&valE, &valD, &valT, 'D');
+                }
+
+                while (valE > (PRETO)) {
+                    pwmE = MAX_PWM/2;
+                    pwmD = 0;
+                    status = 'd';
+                    threshold3 = ticks+period3;
+                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                    // read_adcs(&valE, &valD, &valT, 'd');
+                }
+                
+                // volta servo para o lugar
+                // virou para direita
+
+                // else if(frente livre) vazio
+            //} else if(1) {
+
+            } else if(0) {
+                while (valD < (PRETO)) {
+                    pwmD = MAX_PWM/2;
+                    pwmE = 0;
+                    status = 'E';
+                    threshold3 = ticks+period3;
+                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                    // read_adcs(&valE, &valD, &valT, 'E');
+                }
+
+                while (valD > (PRETO)) {
+                    pwmD = MAX_PWM/2;
+                    pwmE = 0;
+                    status = 'e';
+                    threshold3 = ticks+period3;
+                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                    // read_adcs(&valE, &valD, &valT, 'e');
+                }
+            
+                // volta servo para o lugar
+                // virou para esquerda
+
+            } else {
+                //for (i = 0; i < 2; i++) {
+                    while (valE < (PRETO)) {
+                        pwmE = MAX_PWM/2;
+                        pwmD = 0;
+                        status = 'T';
+                        threshold3 = ticks+period3;
+                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        // read_adcs(&valE, &valD, &valT, 'T');
+                    }
+                    while (valE > (PRETO)) {
+                        pwmE = MAX_PWM/2;
+                        pwmD = 0;
+                        status = 't';
+                        threshold3 = ticks+period3;
+                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        //read_adcs(&valE, &valD, &valT, 't');
+                    }
+                    while (valE < (PRETO)) {
+                        pwmE = MAX_PWM/2;
+                        pwmD = 0;
+                        status = 'T';
+                        threshold3 = ticks+period3;
+                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        // read_adcs(&valE, &valD, &valT, 'T');
+                    }
+                    while (valE > (PRETO)) {
+                        pwmE = MAX_PWM/2;
+                        pwmD = 0;
+                        status = 't';
+                        threshold3 = ticks+period3;
+                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        //read_adcs(&valE, &valD, &valT, 't');
+                    }
+                //}
+                // volta servo para o lugar
+                // retornou
+            }
+
+            // sai do cruzamento
+            while (valT > PRETO) {
+                pwmE = MAX_PWM/2;
+                pwmD = MAX_PWM/2;
+                status = 'G';
+                threshold3 = ticks+period3;
+                PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                // read_adcs(&valE, &valD, &valT, 'G');
+            }
+            cruz = 0;
+
+        } else {
+            pwmE = pwm_value(valE);
+            pwmD = pwm_value(valD);
+            status = 'I';
+        }
+        
+        threshold3 = ticks+period3;
+        PT_WAIT_UNTIL(pt,ticks>=threshold3);
+    }
+
+    (void) PT_YIELD_FLAG; // to silence compiler warning
+
+    PT_END(pt);
+
+}
+
+PT_THREAD(Blinker4(struct pt *pt)) {
+
+    PT_BEGIN(pt);
+
+    while(1) {
+        // Processing
+        PWM_Write(TIMER0, 1, pwmD);
+        PWM_Write(TIMER1, 0, pwmE);
+        threshold4 = ticks+period4;
+        PT_WAIT_UNTIL(pt,ticks>=threshold4);
+    }
+
+    (void) PT_YIELD_FLAG; // to silence compiler warning
+
+    PT_END(pt);
+
+}
+
+
+
 int main(void) {
-    uint32_t valE, valD, valT;
-    uint32_t pwmE, pwmD;
+    // uint32_t valE, valD, valT;
+    // uint32_t pwmE, pwmD;
     char string[50];
 
     ClockConfiguration_t clockconf;
@@ -120,7 +355,17 @@ int main(void) {
     // Enable IRQs
     __enable_irq();
 
+    PT_INIT(&pt1);
+    PT_INIT(&pt2);
+    PT_INIT(&pt3);
+    PT_INIT(&pt4);
+
     while (1) {
+        Blinker1(&pt1);
+        Blinker2(&pt2);
+        Blinker3(&pt3);
+        Blinker4(&pt4);
+        /*
         // valE = 1000;
         // valD = 1000;
         valE = ADC_Read(ADC_CH0);
@@ -216,5 +461,6 @@ int main(void) {
         PWM_Write(TIMER0, 1, pwmD);
         PWM_Write(TIMER1, 0, pwmE);
         Delay(10000);
+        */
     }
 }
