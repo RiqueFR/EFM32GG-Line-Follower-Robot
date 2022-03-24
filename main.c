@@ -19,6 +19,7 @@
 #include "lcd.h"
 #include "adc.h"
 #include "uart.h"
+#include "ultrasound.h"
 #include "clock_efm32gg2.h"
 
 #include "gpio.h"
@@ -32,13 +33,20 @@
 #define DIREITA 1
 #define TRAS 2
 #define ESQUERDA 3
+#define DIST 15
 
+
+#define TG_PIN 0b00100000
+#define EC_PIN 0b00010000
 
 
 uint32_t valE = 0, valD = 0, valT = 0;
 uint32_t pwmE, pwmD;
 static char status = 'I';
 static int cruz = 0;
+static char string[50] = "\0";
+static char string_ult[50] = "\0";
+static int dist = 0;
 
 
 struct pt pt1;
@@ -122,6 +130,7 @@ PT_THREAD(Blinker1(struct pt *pt)) {
         valE = ADC_Read(ADC_CH0);
         valD = ADC_Read(ADC_CH1);
         valT = ADC_Read(ADC_CH3);
+        dist = Ultrasound_Read_Cm(GPIOC, TG_PIN, EC_PIN, &ticks, 600);
         threshold1 = ticks+period1;
         PT_WAIT_UNTIL(pt,ticks>=threshold1);
     }
@@ -149,6 +158,12 @@ PT_THREAD(Blinker2(struct pt *pt)) {
         UART_SendChar(cruz + '0');
         UART_SendChar('\n');
         UART_SendChar('\r');
+        UART_SendString("DIST: ");
+
+        itoa(dist, string_ult, 10);
+        UART_SendString(string_ult);
+        UART_SendChar('\n');
+        UART_SendChar('\r');
 
         UART_SendChar('\n');
         UART_SendChar('\r');
@@ -166,7 +181,7 @@ PT_THREAD(Blinker3(struct pt *pt)) {
 
     PT_BEGIN(pt);
 
-    static int i = 0;
+    static int dist = 0;
 
     while(1) {
         // Processing
@@ -184,7 +199,15 @@ PT_THREAD(Blinker3(struct pt *pt)) {
             //     //imprimir no LCD
             //     //girar o servo 90 graus
             // }
-            if (0) { // direita livre
+            
+            status = 'R';
+            threshold3 = ticks+400000;
+            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+
+            dist = Ultrasound_Read_Cm(GPIOC, TG_PIN, EC_PIN, &ticks, 600);
+            itoa(dist, string, 10);
+            LCD_WriteString(string);
+            if (dist > DIST) { // direita livre
                 while (valE < (PRETO)) {
                     pwmE = MAX_PWM/2;
                     pwmD = 0;
@@ -205,69 +228,86 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                 
                 // volta servo para o lugar
                 // virou para direita
-
-                // else if(frente livre) vazio
-            //} else if(1) {
-
-            } else if(0) {
-                while (valD < (PRETO)) {
-                    pwmD = MAX_PWM/2;
-                    pwmE = 0;
-                    status = 'E';
-                    threshold3 = ticks+period3;
-                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                    // read_adcs(&valE, &valD, &valT, 'E');
-                }
-
-                while (valD > (PRETO)) {
-                    pwmD = MAX_PWM/2;
-                    pwmE = 0;
-                    status = 'e';
-                    threshold3 = ticks+period3;
-                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                    // read_adcs(&valE, &valD, &valT, 'e');
-                }
-            
-                // volta servo para o lugar
-                // virou para esquerda
-
             } else {
-                //for (i = 0; i < 2; i++) {
-                    while (valE < (PRETO)) {
-                        pwmE = MAX_PWM/2;
-                        pwmD = 0;
-                        status = 'T';
-                        threshold3 = ticks+period3;
-                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                        // read_adcs(&valE, &valD, &valT, 'T');
+
+                // verifica frente
+                status = 'r';
+                threshold3 = ticks+400000;
+                PT_WAIT_UNTIL(pt,ticks>=threshold3);
+
+                dist = Ultrasound_Read_Cm(GPIOC, TG_PIN, EC_PIN, &ticks, 600);
+                itoa(dist, string, 10);
+                LCD_WriteString(string);
+                
+                if (dist < DIST) {
+                    // verifica esquerda
+                    status = 'R';
+                    threshold3 = ticks+400000;
+                    PT_WAIT_UNTIL(pt,ticks>=threshold3);
+
+                    dist = Ultrasound_Read_Cm(GPIOC, TG_PIN, EC_PIN, &ticks, 600);
+                    itoa(dist, string, 10);
+                    LCD_WriteString(string);
+                    if(dist > DIST) {
+                        while (valD < (PRETO)) {
+                            pwmD = MAX_PWM/2;
+                            pwmE = 0;
+                            status = 'E';
+                            threshold3 = ticks+period3;
+                            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                            // read_adcs(&valE, &valD, &valT, 'E');
+                        }
+
+                        while (valD > (PRETO)) {
+                            pwmD = MAX_PWM/2;
+                            pwmE = 0;
+                            status = 'e';
+                            threshold3 = ticks+period3;
+                            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                            // read_adcs(&valE, &valD, &valT, 'e');
+                        }
+                        // volta servo para o lugar
+                        // virou para esquerda
+
+                    } else {
+                        //for (i = 0; i < 2; i++) {
+                            while (valE < (PRETO)) {
+                                pwmE = MAX_PWM/2;
+                                pwmD = 0;
+                                status = 'T';
+                                threshold3 = ticks+period3;
+                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                                // read_adcs(&valE, &valD, &valT, 'T');
+                            }
+                            while (valE > (PRETO)) {
+                                pwmE = MAX_PWM/2;
+                                pwmD = 0;
+                                status = 't';
+                                threshold3 = ticks+period3;
+                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                                //read_adcs(&valE, &valD, &valT, 't');
+                            }
+                            while (valE < (PRETO)) {
+                                pwmE = MAX_PWM/2;
+                                pwmD = 0;
+                                status = 'T';
+                                threshold3 = ticks+period3;
+                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                                // read_adcs(&valE, &valD, &valT, 'T');
+                            }
+                            while (valE > (PRETO)) {
+                                pwmE = MAX_PWM/2;
+                                pwmD = 0;
+                                status = 't';
+                                threshold3 = ticks+period3;
+                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                                //read_adcs(&valE, &valD, &valT, 't');
+                            }
+                        //}
+                        // volta servo para o lugar
+                        // retornou
                     }
-                    while (valE > (PRETO)) {
-                        pwmE = MAX_PWM/2;
-                        pwmD = 0;
-                        status = 't';
-                        threshold3 = ticks+period3;
-                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                        //read_adcs(&valE, &valD, &valT, 't');
-                    }
-                    while (valE < (PRETO)) {
-                        pwmE = MAX_PWM/2;
-                        pwmD = 0;
-                        status = 'T';
-                        threshold3 = ticks+period3;
-                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                        // read_adcs(&valE, &valD, &valT, 'T');
-                    }
-                    while (valE > (PRETO)) {
-                        pwmE = MAX_PWM/2;
-                        pwmD = 0;
-                        status = 't';
-                        threshold3 = ticks+period3;
-                        PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                        //read_adcs(&valE, &valD, &valT, 't');
-                    }
-                //}
-                // volta servo para o lugar
-                // retornou
+                }
             }
 
             // sai do cruzamento
@@ -320,7 +360,7 @@ PT_THREAD(Blinker4(struct pt *pt)) {
 int main(void) {
     // uint32_t valE, valD, valT;
     // uint32_t pwmE, pwmD;
-    char string[50];
+    // char string[50];
 
     ClockConfiguration_t clockconf;
 
@@ -352,6 +392,8 @@ int main(void) {
     PWM_Init(TIMER0, 3, PWM_PARAMS_ENABLECHANNEL1); // PIN1
     PWM_Init(TIMER1, 4, PWM_PARAMS_ENABLECHANNEL0); // PIN2
 
+    Ultrasound_Init(GPIOC, TG_PIN, EC_PIN);
+
     // Enable IRQs
     __enable_irq();
 
@@ -361,6 +403,7 @@ int main(void) {
     PT_INIT(&pt4);
 
     while (1) {
+        //dist = Ultrasound_Read_Cm(GPIOC, TG_PIN, EC_PIN, &ticks, 600);
         Blinker1(&pt1);
         Blinker2(&pt2);
         Blinker3(&pt3);
