@@ -1,4 +1,6 @@
-*
+.vscode
+gcc
+Doxyfile
 !.gitignore
 !main.c
 !README.md
