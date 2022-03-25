@@ -1,18 +1,12 @@
 /** ***************************************************************************
  * @file    main.c
- * @brief   Simple UART Demo for EFM32GG_STK3700
+ * @brief   Robo Labirinto for EFM32GG_STK3700
  * @version 1.0
 ******************************************************************************/
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-/*
- * Including this file, it is possible to define which processor using command line
- * E.g. -DEFM32GG995F1024
- * The alternative is to include the processor specific file directly
- * #include "efm32gg995f1024.h"
- */
 #include "em_device.h"
 #include "pt.h"
 #include "pwm.h"
@@ -74,13 +68,6 @@ void Delay(uint32_t v) {
     while ( ticks < lim ) {}
 }
 
-// void task_servo();
-
-// void task_ultrassom();
-
-// void task_motor ();
-
-// void task_line_sensor ();
 
 float pwm_value(int adc_value){
     return (float)(1.0/adc_value) * 500 * MAX_PWM;
@@ -97,29 +84,6 @@ void uart_adc(const char* pal, int int_val) {
     UART_SendChar('\n');
     UART_SendChar('\r');
 }
-
-void read_adcs(uint32_t* valE, uint32_t* valD, uint32_t* valT, int c) {
-    *valE = ADC_Read(ADC_CH0);
-    *valD = ADC_Read(ADC_CH1);
-    *valT = ADC_Read(ADC_CH3);
-    uart_adc("ADCD", *valD);
-    uart_adc("ADCE", *valE);
-    uart_adc("ADCT", *valT);
-    uart_adc("SITU", c);
-
-    UART_SendChar('\n');
-    UART_SendChar('\r');
-    Delay(200000);
-}
-
-// void send_status(char status) {
-//     UART_SendString("SITU: ");
-//     UART_SendChar(status);
-//     UART_SendChar('\n');
-//     UART_SendChar('\r');
-// }
-
-
 
 PT_THREAD(Blinker1(struct pt *pt)) {
 
@@ -193,12 +157,6 @@ PT_THREAD(Blinker3(struct pt *pt)) {
         } else if(valT > PRETO && cruz == 1) {
             pwmE = 0;
             pwmD = 0;
-
-            // for (int i = 0; i < 4; i++){
-            //     //leitura sensor de distancia
-            //     //imprimir no LCD
-            //     //girar o servo 90 graus
-            // }
             
             status = 'R';
             threshold3 = ticks+400000;
@@ -214,7 +172,6 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                     status = 'D';
                     threshold3 = ticks+period3;
                     PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                    //read_adcs(&valE, &valD, &valT, 'D');
                 }
 
                 while (valE > (PRETO)) {
@@ -223,12 +180,11 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                     status = 'd';
                     threshold3 = ticks+period3;
                     PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                    // read_adcs(&valE, &valD, &valT, 'd');
                 }
                 
                 // volta servo para o lugar
                 // virou para direita
-            } else {
+            } else { // direita bloqueada
 
                 // verifica frente
                 status = 'r';
@@ -239,7 +195,8 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                 itoa(dist, string, 10);
                 LCD_WriteString(string);
                 
-                if (dist < DIST) {
+                if (dist < DIST) { // verifica se frente NAO está livre, ai verifica esquerda
+                    
                     // verifica esquerda
                     status = 'R';
                     threshold3 = ticks+400000;
@@ -255,7 +212,6 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                             status = 'E';
                             threshold3 = ticks+period3;
                             PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                            // read_adcs(&valE, &valD, &valT, 'E');
                         }
 
                         while (valD > (PRETO)) {
@@ -264,46 +220,39 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                             status = 'e';
                             threshold3 = ticks+period3;
                             PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                            // read_adcs(&valE, &valD, &valT, 'e');
                         }
                         // volta servo para o lugar
                         // virou para esquerda
 
                     } else {
-                        //for (i = 0; i < 2; i++) {
-                            while (valE < (PRETO)) {
-                                pwmE = MAX_PWM/2;
-                                pwmD = 0;
-                                status = 'T';
-                                threshold3 = ticks+period3;
-                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                                // read_adcs(&valE, &valD, &valT, 'T');
-                            }
-                            while (valE > (PRETO)) {
-                                pwmE = MAX_PWM/2;
-                                pwmD = 0;
-                                status = 't';
-                                threshold3 = ticks+period3;
-                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                                //read_adcs(&valE, &valD, &valT, 't');
-                            }
-                            while (valE < (PRETO)) {
-                                pwmE = MAX_PWM/2;
-                                pwmD = 0;
-                                status = 'T';
-                                threshold3 = ticks+period3;
-                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                                // read_adcs(&valE, &valD, &valT, 'T');
-                            }
-                            while (valE > (PRETO)) {
-                                pwmE = MAX_PWM/2;
-                                pwmD = 0;
-                                status = 't';
-                                threshold3 = ticks+period3;
-                                PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                                //read_adcs(&valE, &valD, &valT, 't');
-                            }
-                        //}
+                        while (valE < (PRETO)) {
+                            pwmE = MAX_PWM/2;
+                            pwmD = 0;
+                            status = 'T';
+                            threshold3 = ticks+period3;
+                            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        }
+                        while (valE > (PRETO)) {
+                            pwmE = MAX_PWM/2;
+                            pwmD = 0;
+                            status = 't';
+                            threshold3 = ticks+period3;
+                            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        }
+                        while (valE < (PRETO)) {
+                            pwmE = MAX_PWM/2;
+                            pwmD = 0;
+                            status = 'T';
+                            threshold3 = ticks+period3;
+                            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        }
+                        while (valE > (PRETO)) {
+                            pwmE = MAX_PWM/2;
+                            pwmD = 0;
+                            status = 't';
+                            threshold3 = ticks+period3;
+                            PT_WAIT_UNTIL(pt,ticks>=threshold3);
+                        }
                         // volta servo para o lugar
                         // retornou
                     }
@@ -317,7 +266,6 @@ PT_THREAD(Blinker3(struct pt *pt)) {
                 status = 'G';
                 threshold3 = ticks+period3;
                 PT_WAIT_UNTIL(pt,ticks>=threshold3);
-                // read_adcs(&valE, &valD, &valT, 'G');
             }
             cruz = 0;
 
@@ -355,12 +303,7 @@ PT_THREAD(Blinker4(struct pt *pt)) {
 
 }
 
-
-
 int main(void) {
-    // uint32_t valE, valD, valT;
-    // uint32_t pwmE, pwmD;
-    // char string[50];
 
     ClockConfiguration_t clockconf;
 
@@ -403,107 +346,9 @@ int main(void) {
     PT_INIT(&pt4);
 
     while (1) {
-        //dist = Ultrasound_Read_Cm(GPIOC, TG_PIN, EC_PIN, &ticks, 600);
         Blinker1(&pt1);
         Blinker2(&pt2);
         Blinker3(&pt3);
         Blinker4(&pt4);
-        /*
-        // valE = 1000;
-        // valD = 1000;
-        valE = ADC_Read(ADC_CH0);
-        valD = ADC_Read(ADC_CH1);
-        valT = ADC_Read(ADC_CH3);
-        
-        // if((valD > PRETO) && (valE > PRETO)) {
-        //     pwmE = MAX_PWM * 0.7;
-        //     pwmD = MAX_PWM * 0.7;
-        // } else if(valT > PRETO) {
-        //     pwmE = 0;
-        //     pwmD = 0;
-
-        //     // for (int i = 0; i < 4; i++){
-        //     //     //leitura sensor de distancia
-        //     //     //imprimir no LCD
-        //     //     //girar o servo 90 graus
-        //     // }
-            // if (0) { // direita livre
-            //     while (valE < (PRETO)) {
-            //         pwmE = MAX_PWM/2;
-            //         pwmD = 0;
-                    // read_adcs(&valE, &valD, &valT, 'D');
-                // }
-
-                // while (valE > (PRETO)) {
-                //     pwmE = MAX_PWM/2;
-                //     pwmD = 0;
-                    // read_adcs(&valE, &valD, &valT, 'd');
-                // }
-                
-        //         // volta servo para o lugar
-        //         // virou para direita
-
-        //         // else if(frente livre) vazio
-        //     //} else if(1) {
-
-            // } else if(0) {
-            //     while (valD < (PRETO)) {
-            //         pwmD = MAX_PWM/2;
-            //         pwmE = 0;
-            //         // read_adcs(&valE, &valD, &valT, 'E');
-            //     }
-
-            //     while (valD > (PRETO)) {
-            //         pwmD = MAX_PWM/2;
-            //         pwmE = 0;
-        //             read_adcs(&valE, &valD, &valT, 'e');
-                // }
-            
-        //         // volta servo para o lugar
-        //         // virou para esquerda
-
-            // } else {
-            //     for (int i = 0; i < 2; i++) {
-            //         while (valE < (PRETO)) {
-            //             pwmE = MAX_PWM/2;
-            //             pwmD = 0;
-                        // read_adcs(&valE, &valD, &valT, 'T');
-                    // }
-                    // while (valE > (PRETO)) {
-                    //     pwmE = MAX_PWM/2;
-                    //     pwmD = 0;
-        //                 read_adcs(&valE, &valD, &valT, 't');
-                    // }
-                // }
-        //         // volta servo para o lugar
-        //         // retornou
-            // }
-
-        //     // sai do cruzamento
-            // while (valT > PRETO) {
-            //     pwmE = MAX_PWM/2;
-            //     pwmD = MAX_PWM/2;
-        //         read_adcs(&valE, &valD, &valT, 'G');
-            // }
-
-        // } else {
-            pwmE = pwm_value(valE);
-            pwmD = pwm_value(valD);
-        // }
-        
-        itoa(valE, string, 10);
-        LCD_WriteString(string);
-        // LCD_WriteString("bunga");
-        //UART_SendString(string);
-        uart_adc("ADCD", valD);
-        uart_adc("ADCE", valE);
-        uart_adc("ADCT", valT);
-
-        UART_SendChar('\n');
-        UART_SendChar('\r');
-        PWM_Write(TIMER0, 1, pwmD);
-        PWM_Write(TIMER1, 0, pwmE);
-        Delay(10000);
-        */
     }
 }
